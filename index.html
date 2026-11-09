@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Post-Payroll Check</title>
+<style>
+body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f4f6f9;margin:0;color:#1d2433}
+.wrap{max-width:820px;margin:30px auto;padding:0 16px}
+h1{font-size:22px;margin:0 0 4px}.sub{color:#667;margin:0 0 20px;font-size:14px}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:20px;margin-bottom:16px}
+.drop{border:2px dashed #9aa7bd;border-radius:10px;padding:28px;text-align:center;cursor:pointer;color:#556}
+.drop.hover{background:#eef3ff;border-color:#3b6fe0}
+.banner{border-radius:10px;padding:16px 18px;font-size:17px;font-weight:600;margin-bottom:14px}
+.ok{background:#e6f6ea;color:#1b6b33;border:1px solid #9fd8ad}
+.bad{background:#fdecec;color:#9b1c1c;border:1px solid #f2a7a7}
+.sec h3{margin:14px 0 6px;font-size:15px;color:#9b1c1c}
+.sec ul{margin:0;padding-left:20px}.sec li{margin:3px 0;font-size:14px}
+button{background:#3b6fe0;color:#fff;border:0;border-radius:8px;padding:12px 20px;font-size:15px;cursor:pointer}
+button:disabled{background:#aab}
+.meta{font-size:13px;color:#667;margin-top:8px}
+.note{font-size:13px;color:#556;background:#f7f8fb;border-radius:8px;padding:10px;margin-top:10px}
+</style></head><body><div class="wrap">
+<h1>Post-Payroll Check</h1>
+<p class="sub">Upload the HHAx payroll export (.txt). Nothing leaves this page.</p>
+<div class="card"><div class="drop" id="drop">Click or drop the payroll .txt file here
+<input type="file" id="file" accept=".txt,.csv" style="display:none"></div>
+<div class="meta" id="fname"></div></div>
+<div class="card" id="res" style="display:none">
+<div id="banner"></div><div class="sec" id="details"></div>
+<div style="margin-top:16px"><button id="dl" disabled>Download</button>
+<span class="meta" id="outname" style="margin-left:10px"></span></div>
+<div class="note">Download = the original file, exactly as uploaded, plus a <b>Shift</b> column after End Time
+(numbered per caregiver per day by start time; REG/OT split lines share a number; blank for PTO and In-Service).</div>
+</div></div>
+<script>
+// ===== SETTINGS (hard-coded) =====
+const WATCHLIST = ["1872","1338","2529","2010","1826","2491","2955","0000","1215"];
+const ADD_SHIFT = true; // turn off once HHAx adds the Shift column itself
+// Columns (0-based): 1 employee id, 2 Start Date, 4 Patient Name, 6 E/D/T Code, 7 Duration, 8 Payrate, 10 Start Time, 11 End Time, 12 E Hours
+const C={ID:1,DATE:2,PAT:4,CODE:6,DUR:7,RATE:8,START:10,END:11,HRS:12};
+
+function splitRaw(line){ // returns raw field strings (quotes kept) so output is byte-identical
+  const out=[];let cur='',q=false;
+  for(let i=0;i<line.length;i++){const ch=line[i];
+    if(ch=='"'){q=!q;cur+=ch;} else if(ch==','&&!q){out.push(cur);cur='';} else cur+=ch;}
+  out.push(cur);return out;}
+const val=f=>{f=f.trim();if(f.startsWith('"')&&f.endsWith('"')&&f.length>=2)f=f.slice(1,-1).replace(/""/g,'"');return f;};
+const num=s=>{if(s===''||s==null)return NaN;const n=Number(String(s).trim());return n;};
+function lastSaturday(){const d=new Date();const diff=(d.getDay()-6+7)%7;d.setDate(d.getDate()-diff);
+  const p=n=>String(n).padStart(2,'0');return 'PWE'+p(d.getMonth()+1)+p(d.getDate())+String(d.getFullYear()).slice(2)+'.csv';}
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const fmt=n=>Math.round(n*100)/100;
+
+let outText=null,outName=null;
+function run(text,name){
+  if(text.charCodeAt(0)===0xFEFF)text=text.slice(1);
+  const eol=text.includes('\r\n')?'\r\n':'\n';
+  const endsWithEol=text.endsWith(eol);
+  let lines=text.split(eol); if(endsWithEol)lines.pop();
+  const raws=lines.map(splitRaw), rows=raws.map(r=>r.map(val));
+  const flags=[];
+  // Fingerprint Reimbursement
+  const fp=[];rows.forEach(r=>{if(r.some(c=>/fingerprint reimbursement/i.test(c))){
+    const amt=r.find((c,i)=>i>1&&/^-?\$?\d+(\.\d{1,2})?$/.test(c.trim()))||'N/A';fp.push(`${r[C.ID]} (Amount: ${amt})`);}});
+  if(fp.length)flags.push(['Fingerprint Reimbursement',fp]);
+  // Negative total pay (hours x payrate summed per caregiver)
+  const tot={};rows.forEach(r=>{const h=num(r[C.HRS]),p=num(r[C.RATE]);const k=r[C.ID];
+    if(!(k in tot))tot[k]=0; if(!isNaN(h)&&!isNaN(p))tot[k]+=h*p;});
+  const neg=Object.keys(tot).filter(k=>tot[k]<-1e-9).map(k=>`${k} (Total Pay: ${fmt(tot[k])})`);
+  if(neg.length)flags.push(['Negative Pay',neg]);
+  // Watchlist
+  const codes=new Set(rows.map(r=>r[C.ID]));
+  const hits=[...new Set(WATCHLIST)].filter(c=>codes.has(c)).sort().map(c=>`Caregiver ${c} found!`);
+  if(hits.length)flags.push(['Watchlist Caregivers',hits]);
+  // Negative PTO
+  const npto=rows.filter(r=>(r[C.PAT]||'').toUpperCase()==='PTO'&&((r[C.DUR]||'').startsWith('-')||num(r[C.HRS])<0)).map(r=>`Caregiver ${r[C.ID]}`);
+  if(npto.length)flags.push(['Negative PTO found!',npto]);
+  // Blank / empty lines
+  const blanks=[];lines.forEach((l,i)=>{if(l.trim()==='')blanks.push(i+1);});
+  if(blanks.length)flags.push(['Empty raw lines found at line(s)',[blanks.join(', ')]]);
+  const emptyRows=rows.filter((r,i)=>lines[i].trim()!==''&&r.every(c=>c.trim()==='')).length;
+  if(emptyRows)flags.push(['Empty lines found',[emptyRows+' rows']]);
+
+  // Shift column
+  let out=raws;
+  if(ADD_SHIFT){
+    const groups={};
+    rows.forEach((r,i)=>{if(i===0)return;const code=(r[C.CODE]||'').toUpperCase(),pat=(r[C.PAT]||'').toUpperCase();
+      if(code==='PTO'||code==='INS'||pat==='PTO'||pat==='INSERVICE'||!r[C.START])return;
+      const k=r[C.ID]+'|'+r[C.DATE];(groups[k]=groups[k]||new Set()).add(r[C.START]);});
+    const rank={};for(const k in groups){const arr=[...groups[k]].sort((a,b)=>new Date(a)-new Date(b));arr.forEach((s,j)=>rank[k+'|'+s]=j+1);}
+    out=raws.map((rw,i)=>{const r=rows[i];if(lines[i].trim()==='')return rw;
+      let v;if(i===0)v='Shift';else v=rank[r[C.ID]+'|'+r[C.DATE]+'|'+r[C.START]]||'';
+      const c=rw.slice();c.splice(C.END+1,0,i===0?'Shift':'"'+v+'"');return c;});
+  }
+  outText=out.map(r=>Array.isArray(r)?r.join(','):r).join(eol)+(endsWithEol?eol:'');
+  outName=lastSaturday();
+  const b=document.getElementById('banner'),d=document.getElementById('details');
+  if(flags.length){b.className='banner bad';b.textContent='⚠ Action needed: '+flags.length+' check(s) found something. Correct the file and upload again.';
+    d.innerHTML=flags.map(([t,items])=>`<h3>${esc(t)}</h3><ul>${items.map(x=>'<li>'+esc(x)+'</li>').join('')}</ul>`).join('');}
+  else{b.className='banner ok';b.textContent='✓ All clear. No errors found, ready to download.';d.innerHTML='';}
+  document.getElementById('res').style.display='block';
+  const btn=document.getElementById('dl');btn.disabled=false;
+  btn.textContent=flags.length?'Download anyway':'Download';
+  document.getElementById('outname').textContent='Saves as '+outName+' · '+(rows.length-1)+' lines checked';
+  document.getElementById('fname').textContent='Loaded: '+name;
+}
+document.getElementById('dl').onclick=()=>{const blob=new Blob([outText],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=outName;a.click();};
+const drop=document.getElementById('drop'),fi=document.getElementById('file');
+const read=f=>{const rd=new FileReader();rd.onload=e=>run(e.target.result,f.name);rd.readAsText(f);};
+drop.onclick=()=>fi.click();fi.onchange=()=>fi.files[0]&&read(fi.files[0]);
+drop.ondragover=e=>{e.preventDefault();drop.classList.add('hover');};drop.ondragleave=()=>drop.classList.remove('hover');
+drop.ondrop=e=>{e.preventDefault();drop.classList.remove('hover');e.dataTransfer.files[0]&&read(e.dataTransfer.files[0]);};
+if(typeof module!=='undefined')module.exports={run,get:()=>({outText,outName})};
+</script></body></html>
