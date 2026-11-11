@@ -65,7 +65,7 @@ button#dl:hover{background:#572064}button#dl:disabled{background:#cdbfd2;cursor:
 </div>
 <script>
 // ===== SETTINGS (hard-coded) =====
-const WATCHLIST = ["1872","1338","2529","2010","1826","2491","2955","1708","1215","1716"];
+const WATCHLIST = ["1872","1338","2529","2010","1826","2491","2955","1215","1671"];
 const ADD_SHIFT = true; // turn off once HHAx adds the Shift column itself
 // Columns (0-based): 1 employee id, 2 Start Date, 4 Patient Name, 6 E/D/T Code, 7 Duration, 8 Payrate, 10 Start Time, 11 End Time, 12 E Hours
 const C={ID:1,DATE:2,PAT:4,CODE:6,DUR:7,RATE:8,START:10,END:11,HRS:12};
@@ -87,7 +87,7 @@ function run(text,name){
   if(text.charCodeAt(0)===0xFEFF)text=text.slice(1);
   const eol=text.includes('\r\n')?'\r\n':'\n';
   const endsWithEol=text.endsWith(eol);
-  let lines=text.split(eol); if(endsWithEol)lines.pop();
+  let lines=text.split(/\r\n|\n|\r/); if(endsWithEol)lines.pop(); // mixed line endings (pasted lines) handled
   const raws=lines.map(splitRaw), rows=raws.map(r=>r.map(val));
   const flags=[];
   // Fingerprint Reimbursement
