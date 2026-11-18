@@ -36,7 +36,6 @@ h1{margin:18px 0 4px;font-size:clamp(28px,4.5vw,40px);letter-spacing:-.03em;colo
 .hidden{display:none}
 footer{color:#a094a4;font-size:11px;text-align:center;padding:26px 0 40px}
 .copied{background:#1b7f3b !important;color:#fff !important}
-
 .banner{border-radius:16px;padding:16px 18px;font-size:16px;font-weight:700;margin-bottom:14px;line-height:1.4}
 .banner.ok{background:#e9f7ee;color:#1b7f3b;border:1px solid #b8e2c5}
 .banner.bad{background:#fdeef0;color:#b00020;border:1px solid #f3c1c8}
@@ -61,7 +60,8 @@ button#dl:hover{background:#572064}button#dl:disabled{background:#cdbfd2;cursor:
 <div class="note">Download = the original file, exactly as uploaded, plus a <b>Shift</b> column after End Time
 (numbered per caregiver per day by start time; REG/OT split lines share a number; blank for PTO and In-Service).</div>
 </div>
-<footer>A Davidowitz Project © 2026 · Post-Payroll Check v1.2</footer>
+<div class="card"><div class="row"><div><div class="label">Payroll submission email</div><div class="subject" id="emailSubject"></div></div><button class="btn" id="copyEmail">Copy Email</button></div></div>
+<footer>A Davidowitz Project © 2026 · Post-Payroll Check v1.3</footer>
 </div>
 <script>
 // ===== SETTINGS (hard-coded) =====
@@ -69,7 +69,6 @@ const WATCHLIST = ["1872","1338","2529","2010","1826","2491","2955","1215","1671
 const ADD_SHIFT = true; // turn off once HHAx adds the Shift column itself
 // Columns (0-based): 1 employee id, 2 Start Date, 4 Patient Name, 6 E/D/T Code, 7 Duration, 8 Payrate, 10 Start Time, 11 End Time, 12 E Hours
 const C={ID:1,DATE:2,PAT:4,CODE:6,DUR:7,RATE:8,START:10,END:11,HRS:12};
-
 function splitRaw(line){ // returns raw field strings (quotes kept) so output is byte-identical
   const out=[];let cur='',q=false;
   for(let i=0;i<line.length;i++){const ch=line[i];
@@ -81,7 +80,6 @@ function lastSaturday(){const d=new Date();const diff=(d.getDay()-6+7)%7;d.setDa
   const p=n=>String(n).padStart(2,'0');return 'PWE'+p(d.getMonth()+1)+p(d.getDate())+String(d.getFullYear()).slice(2)+'.csv';}
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const fmt=n=>Math.round(n*100)/100;
-
 let outText=null,outName=null;
 function run(text,name){
   if(text.charCodeAt(0)===0xFEFF)text=text.slice(1);
@@ -111,7 +109,6 @@ function run(text,name){
   if(blanks.length)flags.push(['Empty raw lines found at line(s)',[blanks.join(', ')]]);
   const emptyRows=rows.filter((r,i)=>lines[i].trim()!==''&&r.every(c=>c.trim()==='')).length;
   if(emptyRows)flags.push(['Empty lines found',[emptyRows+' rows']]);
-
   // Shift column
   let out=raws;
   if(ADD_SHIFT){
@@ -143,5 +140,18 @@ const read=f=>{const rd=new FileReader();rd.onload=e=>run(e.target.result,f.name
 fi.onchange=()=>fi.files[0]&&read(fi.files[0]);
 drop.ondragover=e=>{e.preventDefault();drop.classList.add('hover');};drop.ondragleave=()=>drop.classList.remove('hover');
 drop.ondrop=e=>{e.preventDefault();drop.classList.remove('hover');e.dataTransfer.files[0]&&read(e.dataTransfer.files[0]);};
+// Email copy is independent of the payroll file and uses the device's local date.
+function payrollWeekDate(){const d=new Date();d.setDate(d.getDate()-(d.getDay()+1)%7);return `${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}`;}
+function payrollEmail(){const date=payrollWeekDate();return `Benevolent HC - Payroll Submission for Week Ending ${date}\n\nAttached, please find the payroll file for week ending on ${date}.\n\nAdditionally, please ensure that any checks previously requested to be stopped are reissued as needed.\n\nThe office timesheets have also been confirmed.`;}
+document.getElementById('emailSubject').textContent=`Benevolent HC - Payroll Submission for Week Ending ${payrollWeekDate()}`;
+document.getElementById('copyEmail').onclick=async()=>{
+  const btn=document.getElementById('copyEmail'),message=payrollEmail();
+  try{
+    if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(message);}
+    else{const area=document.createElement('textarea');area.value=message;area.style.position='fixed';area.style.opacity='0';document.body.appendChild(area);area.focus();area.select();const copied=document.execCommand('copy');area.remove();if(!copied)throw new Error('Copy failed');}
+    btn.textContent='Copied!';btn.classList.add('copied');
+  }catch(e){btn.textContent='Copy failed';}
+  setTimeout(()=>{btn.textContent='Copy Email';btn.classList.remove('copied');},2200);
+};
 if(typeof module!=='undefined')module.exports={run,get:()=>({outText,outName})};
 </script></body></html>
