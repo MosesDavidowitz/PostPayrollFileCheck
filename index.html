@@ -57,11 +57,11 @@ button#dl:hover{background:#572064}button#dl:disabled{background:#cdbfd2;cursor:
 <div id="banner"></div><div class="sec" id="details"></div>
 <div class="row" style="margin-top:16px;justify-content:flex-start"><button id="dl" disabled>Download</button><button class="btn" id="copyEmail">Copy Email</button>
 <span class="meta" id="outname"></span></div>
-<div class="note">Download = the original file, exactly as uploaded, plus a <b>Shift</b> column after End Time
+<div class="note">Download = the original file, exactly as uploaded, plus a <b>Shift</b> column after End Time and <b>Patient Number</b> renamed to <b>CC2</b>
 (numbered per caregiver per day by start time; REG/OT split lines share a number; blank for PTO and In-Service).</div>
 </div>
 
-<footer>A Davidowitz Project © 2026 · Post-Payroll Check v1.4</footer>
+<footer>A Davidowitz Project © 2026 · Post-Payroll Check v1.5</footer>
 </div>
 <script>
 // ===== SETTINGS (hard-coded) =====
@@ -121,6 +121,8 @@ function run(text,name){
       let v;if(i===0)v='Shift';else v=rank[r[C.ID]+'|'+r[C.DATE]+'|'+r[C.START]]||'';
       const c=rw.slice();c.splice(C.END+1,0,i===0?'Shift':'"'+v+'"');return c;});
   }
+  // Rename only the exported header, leaving all data and validation logic unchanged.
+  if(out.length){out[0]=out[0].map(field=>val(field)==='Patient Number'?(field.trim().startsWith('"')?'"CC2"':'CC2'):field);}
   outText=out.map(r=>Array.isArray(r)?r.join(','):r).join(eol)+(endsWithEol?eol:'');
   outName=lastSaturday();
   const b=document.getElementById('banner'),d=document.getElementById('details');
