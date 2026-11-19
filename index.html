@@ -55,13 +55,13 @@ button#dl:hover{background:#572064}button#dl:disabled{background:#cdbfd2;cursor:
 <div class="meta" id="fname" style="margin-top:12px"></div></div>
 <div class="card" id="res" style="display:none">
 <div id="banner"></div><div class="sec" id="details"></div>
-<div class="row" style="margin-top:16px;justify-content:flex-start"><button id="dl" disabled>Download</button>
+<div class="row" style="margin-top:16px;justify-content:flex-start"><button id="dl" disabled>Download</button><button class="btn" id="copyEmail">Copy Email</button>
 <span class="meta" id="outname"></span></div>
 <div class="note">Download = the original file, exactly as uploaded, plus a <b>Shift</b> column after End Time
 (numbered per caregiver per day by start time; REG/OT split lines share a number; blank for PTO and In-Service).</div>
 </div>
-<div class="card"><div class="row"><div><div class="label">Payroll submission email</div><div class="subject" id="emailSubject"></div></div><button class="btn" id="copyEmail">Copy Email</button></div></div>
-<footer>A Davidowitz Project © 2026 · Post-Payroll Check v1.3</footer>
+
+<footer>A Davidowitz Project © 2026 · Post-Payroll Check v1.4</footer>
 </div>
 <script>
 // ===== SETTINGS (hard-coded) =====
@@ -143,7 +143,6 @@ drop.ondrop=e=>{e.preventDefault();drop.classList.remove('hover');e.dataTransfer
 // Email copy is independent of the payroll file and uses the device's local date.
 function payrollWeekDate(){const d=new Date();d.setDate(d.getDate()-(d.getDay()+1)%7);return `${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}`;}
 function payrollEmail(){const date=payrollWeekDate();return `Benevolent HC - Payroll Submission for Week Ending ${date}\n\nAttached, please find the payroll file for week ending on ${date}.\n\nAdditionally, please ensure that any checks previously requested to be stopped are reissued as needed.\n\nThe office timesheets have also been confirmed.`;}
-document.getElementById('emailSubject').textContent=`Benevolent HC - Payroll Submission for Week Ending ${payrollWeekDate()}`;
 document.getElementById('copyEmail').onclick=async()=>{
   const btn=document.getElementById('copyEmail'),message=payrollEmail();
   try{
